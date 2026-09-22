@@ -11,6 +11,7 @@ pub fn open_fastq(path: &Path) -> io::Result<Box<dyn BufRead>> {
 }
 
 fn reader_for_input(mut input: impl BufRead + 'static) -> io::Result<Box<dyn BufRead>> {
+    // Compression is determined from gzip's magic bytes, not the filename extension.
     if input.fill_buf()?.starts_with(&[0x1f, 0x8b]) {
         Ok(Box::new(BufReader::new(GzDecoder::new(input))))
     } else {

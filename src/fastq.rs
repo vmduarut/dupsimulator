@@ -54,6 +54,7 @@ pub fn simulate_records_with_report<R: Write>(
     while let Some(record) = records.next_record()? {
         stats.source_units += 1;
 
+        // A selected source produces the original family member plus a sampled number of copies.
         if rng.random_bool(source_selection_probability) {
             let extra_copies = sample_geometric(mean_extra_copies, rng);
             stats.duplicate_groups += 1;
@@ -115,6 +116,7 @@ pub fn simulate_paired_records_with_report<R: Write>(
         let (r1, r2) = match (r1, r2) {
             (None, None) => break,
             (Some(r1), Some(r2)) => (r1, r2),
+            // Do not silently truncate a pair when one input ends first.
             _ => {
                 return Err(invalid_record(
                     record_number,
@@ -123,6 +125,7 @@ pub fn simulate_paired_records_with_report<R: Write>(
             }
         };
 
+        // Pairing is based on the common identifier, ignoring conventional /1 and /2 suffixes.
         if paired_identifier(&r1.header) != paired_identifier(&r2.header) {
             return Err(invalid_record(
                 record_number,
@@ -132,6 +135,7 @@ pub fn simulate_paired_records_with_report<R: Write>(
 
         stats.source_units += 1;
 
+        // Sample one family per input pair so R1 and R2 always have the same family size.
         if rng.random_bool(source_selection_probability) {
             let extra_copies = sample_geometric(mean_extra_copies, rng);
             stats.duplicate_groups += 1;
@@ -181,6 +185,7 @@ impl<R: BufRead> FastqReader<R> {
             quality,
         };
 
+        // Validate while streaming so malformed FASTQ fails at the first offending record.
         validate_record(&record, record_number)?;
         self.record_number = record_number;
         Ok(Some(record))
@@ -221,6 +226,7 @@ fn duplicate_header(header: &str, duplicate_number: usize) -> String {
         .strip_suffix("/1")
         .or_else(|| identifier.strip_suffix("/2"))
     {
+        // Insert before /1 or /2 so mate-aware tools still recognize the read suffix.
         Some(identifier) => (
             &header[..identifier.len()],
             &header[identifier.len()..identifier_end],
@@ -278,6 +284,7 @@ fn sample_geometric(mean: f64, rng: &mut impl Rng) -> usize {
         return 1;
     }
 
+    // Inverse-CDF sampling turns a uniform draw into a geometric count with the requested mean.
     let success_probability = 1.0 / mean;
     ((-rng.random::<f64>()).ln_1p() / (-success_probability).ln_1p()).floor() as usize + 1
 }
